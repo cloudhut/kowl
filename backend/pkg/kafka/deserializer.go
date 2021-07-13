@@ -136,7 +136,25 @@ func (d *deserializer) deserializePayload(payload []byte, topicName string, reco
 		}
 	}
 
-	// 2. Test for valid XML
+	// 2. Test for json schema
+	if d.SchemaService != nil && len(payload) > 5 && payload[0] == byte(0) {
+		schemaID := binary.BigEndian.Uint32(payload[1:5])
+		trimmed := bytes.TrimLeft(payload[5:], " \t\r\n")
+		startsWithJSON := trimmed[0] == '[' || trimmed[0] == '{'
+		if startsWithJSON {
+			var obj interface{}
+			err := json.Unmarshal(payload[5:], &obj)
+			if err == nil {
+				return &deserializedPayload{Payload: normalizedPayload{
+					Payload:            trimmed,
+					RecognizedEncoding: messageEncodingJSON,
+				}, Object: obj, RecognizedEncoding: messageEncodingJSON, SchemaID: schemaID, Size: len(payload)}
+			}
+		}
+
+	}
+
+	// 3. Test for valid XML
 	startsWithXML := trimmed[0] == '<'
 	if startsWithXML {
 		r := strings.NewReader(string(trimmed))
@@ -151,7 +169,7 @@ func (d *deserializer) deserializePayload(payload []byte, topicName string, reco
 		}
 	}
 
-	// 3. Test for Avro (reference: https://docs.confluent.io/current/schema-registry/serdes-develop/index.html#wire-format)
+	// 4. Test for Avro (reference: https://docs.confluent.io/current/schema-registry/serdes-develop/index.html#wire-format)
 	if d.SchemaService != nil && len(payload) > 5 {
 		// Check if magic byte is set
 		if payload[0] == byte(0) {
@@ -176,7 +194,7 @@ func (d *deserializer) deserializePayload(payload []byte, topicName string, reco
 		}
 	}
 
-	// 4. Test for Protobuf
+	// 5. Test for Protobuf
 	if d.ProtoService != nil {
 		jsonBytes, schemaID, err := d.ProtoService.UnmarshalPayload(payload, topicName, recordType)
 		if err == nil {
@@ -197,7 +215,7 @@ func (d *deserializer) deserializePayload(payload []byte, topicName string, reco
 		}
 	}
 
-	// 5. Test for MessagePack (only if enabled and topic allowed)
+	// 6. Test for MessagePack (only if enabled and topic allowed)
 	if d.MsgPackService != nil && d.MsgPackService.IsTopicAllowed(topicName) {
 		var obj interface{}
 		err := msgpack.Unmarshal(payload, &obj)
@@ -212,7 +230,7 @@ func (d *deserializer) deserializePayload(payload []byte, topicName string, reco
 		}
 	}
 
-	// 6. Test for UTF-8 validity
+	// 7. Test for UTF-8 validity
 	isUTF8 := utf8.Valid(payload)
 	if isUTF8 {
 		return &deserializedPayload{Payload: normalizedPayload{

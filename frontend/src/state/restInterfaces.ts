@@ -621,12 +621,19 @@ export interface SchemaDetailsResponse {
     schemaDetails: SchemaDetails
 }
 
+export enum SchemaType {
+    AVRO="AVRO",
+    JSON="JSON",
+    PROTOBUF= "PROTOBUF",
+}
+
 export interface SchemaDetails {
     string: string;
     schemaId: number;
     version: number;
     compatibility: string;
-    schema: Schema;
+    type: SchemaType;
+    schema: Schema | JsonSchema;
     registeredVersions: number[];
 }
 
@@ -636,6 +643,30 @@ export interface Schema {
     namespace: string;
     type: string;
     fields: SchemaField[];
+}
+
+export enum JsonFieldType {
+    STRING="string",
+    NUMBER="number",
+    INTEGER= "integer",
+    OBJECT="object",
+    ARRAY="array",
+    BOOLEAN="boolean",
+    NULL="null"
+}
+
+export interface JsonSchema {
+  $id: string;
+  type: JsonFieldType;
+  title: string;
+  description: string;
+  properties?: Record<string, JsonField>;
+}
+
+export interface JsonField {
+  type: string;
+  items?: JsonField;
+  properties?: Record<string, JsonField>;
 }
 
 export interface SchemaField {

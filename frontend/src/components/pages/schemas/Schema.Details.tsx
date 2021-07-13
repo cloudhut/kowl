@@ -10,8 +10,9 @@ import { motion } from 'framer-motion';
 import { animProps } from '../../../utils/animationProps';
 import { KowlJsonView } from '../../misc/KowlJsonView';
 import { sortField } from '../../misc/common';
-import { SchemaField } from '../../../state/restInterfaces';
+import { JsonField, JsonFieldType, JsonSchema, Schema, SchemaField, SchemaType } from '../../../state/restInterfaces';
 import { uiSettings } from '../../../state/ui';
+import { title } from 'process';
 
 export interface SchemaDetailsProps {
     subjectName: string;
@@ -22,6 +23,60 @@ export interface SchemaDetailsProps {
 
 function renderSchemaType(value: any, record: SchemaField, index: number) {
     return toSafeString(value);
+}
+
+function convertJsonField(name: string, field: JsonField): SchemaField {
+
+    switch (field.type) {
+        case JsonFieldType.ARRAY: {
+            let items = undefined;
+            if ( field.items){
+              const jsonField = convertJsonField(name, field.items);
+              items = jsonField.type;
+            }
+
+            return {
+              name,
+              type: {
+                type: field.type,
+                items,
+              }
+            };
+        }
+        case JsonFieldType.OBJECT: {
+            let fields: Record<string, unknown> | undefined = undefined;
+            if ( field.properties) {
+                fields = {};
+                for ( const name in field.properties) {
+                    const jsonField = convertJsonField(name, field.properties[name]);
+                    fields[name] = jsonField.type; 
+                }
+            }
+            return {
+                name,
+                type: {
+                    type: field.type,
+                    properties: field.properties
+                }
+            };
+        }
+        case undefined: {
+          if ( field.properties ) {
+              return convertJsonField(name, { ...field, type: JsonFieldType.OBJECT }); 
+          }
+          if ( field.items) {
+              return convertJsonField(name, { ...field, type: JsonFieldType.ARRAY });  
+          }
+          break;
+        }
+        default: {
+           break;
+        }
+    }
+    return {
+        name,
+        type: field.type,
+    };
 }
 
 @observer
@@ -55,8 +110,21 @@ class SchemaDetailsView extends PageComponent<SchemaDetailsProps> {
             schemaId,
             version,
             compatibility,
-            schema: { type, name, namespace, doc, fields },
+            type: schemaType,
+            schema
         } = api.schemaDetails;
+        let { type, name, namespace, doc, fields }  = schema as Schema;
+        if (  schemaType === SchemaType.JSON ) {
+            const jsonSchema = schema as JsonSchema;
+            ({type, title: name, description: doc, $id: namespace} = jsonSchema);
+            fields = [];
+            if ( jsonSchema.properties ) {
+                for (const p in jsonSchema.properties) {
+                    const property = jsonSchema.properties[p];
+                    fields.push ( convertJsonField(p, property) );
+                }
+            }
+        }
 
         const versions = api.schemaDetails?.registeredVersions ?? [];
 

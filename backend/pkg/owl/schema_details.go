@@ -14,6 +14,7 @@ type SchemaDetails struct {
 	Compatibility      string `json:"compatibility"`
 	Schema             string `json:"schema"`
 	RegisteredVersions []int  `json:"registeredVersions"`
+	Type               string `json:"type"`
 }
 
 func (s *Service) GetSchemaDetails(_ context.Context, subject string, version string) (*SchemaDetails, error) {
@@ -47,5 +48,6 @@ func (s *Service) GetSchemaDetails(_ context.Context, subject string, version st
 		Compatibility:      cfgRes.Compatibility,
 		RegisteredVersions: versions.Versions,
 		Schema:             versionedSchema.Schema,
+		Type:               versionedSchema.Type,
 	}, nil
 }
